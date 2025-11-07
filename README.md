@@ -110,16 +110,16 @@ graph LR
     A2[TF / Images / Numeric Topics]
   end
 
-  A1A2
-  A2B[rdash Agent (rclpy)]
-  BHTTP/HTTPS: /api/push, /api/push_image, /api/push_tf| C[rdash App (Flask + Socket.IO)]
-  C|WebSocket| D[Browser Dashboard (ECharts)]
+  A1-->A2
+  A2-->B[rdash Agent (rclpy)]
+  B-->HTTP/HTTPS: /api/push, /api/push_image, /api/push_tf| C[rdash App (Flask + Socket.IO)]
+  C-->|WebSocket| D[Browser Dashboard (ECharts)]
   
   subgraph Browser
     D1[Charts / Panels]
   end
 
-  DD1
+  D-->D1
 ```
 
 ```mermaid
