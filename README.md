@@ -559,4 +559,4 @@ What this does:
 * Allows up to 32 metrics per push to avoid choking frontend/WS.
 
 ---
-*Data should empower, not overwhelm*
+*"Data should empower, not overwhelm"*
