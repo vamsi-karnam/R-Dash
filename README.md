@@ -112,7 +112,7 @@ flowchart TD
 
   A1 --> A2
   A2 --> B["RDASH Agent (rclpy)"]
-  B -- "HTTP/HTTPS: /api/push, /api/push_image, /api/push_tf" --> C["RDASH App (Flask + Socket.IO)"]
+  B -- "HTTP/HTTPS: /api/push, /api/push_image, /api/push_tf, etc" --> C["RDASH App (Flask + Socket.IO)"]
   C -- "WebSocket" --> D["Browser Dashboard (ECharts)"]
 
   subgraph Browser
