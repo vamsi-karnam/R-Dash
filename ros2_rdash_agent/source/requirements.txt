@@ -1,0 +1,10 @@
+# -- Requirements for RITT agent -- #
+
+#rclpy
+#rosidl-runtime-py
+#sensor-msgs
+#tf2-msgs
+#std-msgs
+#cv-bridge
+requests
+opencv-python

@@ -1,0 +1,93 @@
+<!--
+  -----------------------------------------------------------------------------
+  Author: Vamsi Karnam
+  Description: Webpage HTML setup.
+  -----------------------------------------------------------------------------
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>RDASH - An open source dashboard for robot data telemetry</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- styles -->
+  <link rel="stylesheet" href="/static/styles/styles.css" />
+  <!-- libs -->
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.umd.min.js"></script> <!-- NEW: zoom/pan plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+
+
+</head>
+<body>
+  <header>
+    <h1>R'DASH - An open source dashboard for robot data telemetry</h1>
+  </header>
+
+  <div class="wrap">
+    <div id="robots" class="grid"></div>
+    <div id="detail" style="display:none; margin-top:16px"></div>
+  </div>
+
+  <!-- Auth Gate -->
+  <div id="auth-gate" class="modal-backdrop" hidden>
+    <div class="modal-card">
+      <h3>Enter Access Token</h3>
+      <p class="muted">This server requires a Bearer token.</p>
+      <input id="auth-input" class="input" type="password" placeholder="Bearer token" autofocus />
+      <div class="modal-actions">
+        <button id="auth-submit" class="btn">Continue</button>
+        <button id="auth-clear" class="btn secondary">Clear</button>
+      </div>
+      <p id="auth-error" class="error" hidden>Invalid or missing token.</p>
+    </div>
+  </div>
+
+  <!-- Footer bar -->
+  <div class="footer-bar">
+    <span>ROS2</span>
+    <span id="status-pill" class="pill">Idle</span>
+    <div class="spacer"></div>
+    <button id="quit-btn" class="btn danger">Quit</button>
+  </div>
+
+  <!-- app -->
+  <script src="/static/js/main.js"></script>
+  <script>
+    (function(){
+      const gate  = document.getElementById('auth-gate');
+      const input = document.getElementById('auth-input');
+      const submit= document.getElementById('auth-submit');
+      const clear = document.getElementById('auth-clear');
+      const err   = document.getElementById('auth-error');
+
+      submit?.addEventListener('click', () => {
+        const val = (input?.value || '').trim();
+        if (!val) { err.hidden = false; return; }
+        if (window.saveTokenAndReconnect) window.saveTokenAndReconnect(val);
+        if (gate) gate.hidden = true;
+      });
+      clear?.addEventListener('click', () => {
+        if (window.clearToken) window.clearToken();
+        if (input) input.value = '';
+        if (err) err.hidden = true;
+        if (gate) gate.hidden = false;
+      });
+
+      // Quit button => /api/shutdown (auth aware)
+      const btn = document.getElementById('quit-btn');
+      btn?.addEventListener('click', async () => {
+        try {
+          const tok = localStorage.getItem('urdaf_token') || '';
+          const headers = tok ? { 'Authorization': 'Bearer ' + tok } : {};
+          await fetch('/api/shutdown', { method: 'POST', headers });
+        } catch(e) {}
+        setTimeout(() => { window.open('', '_self'); window.close(); }, 200);
+      });
+    })();
+  </script>
+</body>
+</html>

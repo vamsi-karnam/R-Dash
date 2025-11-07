@@ -1,0 +1,27 @@
+1. Install ROS 2 (Jazzy recommended)
+# Follow official instructions: https://docs.ros.org/en/jazzy/Installation.html
+sudo apt update
+sudo apt install ros-jazzy-desktop
+
+2. Source ROS 2 environment
+source /opt/ros/jazzy/setup.bash
+
+3. Install Python dependencies
+# Create a virtual environment (optional but recommended)
+python3 -m venv ~/ros2_venv
+source ~/ros2_venv/bin/activate
+
+4. Install PyPI packages
+pip install requests opencv-python
+
+5. Install ROS Python packages via apt
+sudo apt install ros-jazzy-rclpy \
+                 ros-jazzy-sensor-msgs \
+                 ros-jazzy-tf2-msgs \
+                 ros-jazzy-geometry-msgs \
+                 ros-jazzy-std-msgs \
+                 ros-jazzy-cv-bridge
+
+6. Verify installation
+ros2 --version
+python3 -c "import rclpy; print('rclpy OK')"
