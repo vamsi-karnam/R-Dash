@@ -124,10 +124,10 @@ flowchart TD
   A1 --> A2
   A2 --> B["RDASH Agent (rclpy)"]
   B -- "HTTP/HTTPS: /api/push, /api/push_image, /api/push_tf, etc" --> C["RDASH App (Flask + Socket.IO)"]
-  C -- "WebSocket" --> D["Browser Dashboard (ECharts)"]
+  C -- "WebSocket" --> D["Browser Dashboard (JS ECharts)"]
 
   subgraph Browser
-    D1["Charts / Panels"]
+    D1["Charts / Graphs / Panels"]
   end
 
   D -->  D1
