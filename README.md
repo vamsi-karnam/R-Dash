@@ -81,7 +81,7 @@ python3 rdash_agent.py \
   * [Agent (rdash Agent)](#agent-rdash-agent)
   * [Preferred deployment topology](#preferred-deployment-topology)
   * [Test simulation](#test-simulation)
-  * [API docs]()
+  * [API docs](#api-docs)
 * [Front-end behavior & controls](#dashboard-behavior)
 * [Data flow](#data-flow)
 * [Performance & tuning](#performance--tuning)
