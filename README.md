@@ -125,7 +125,7 @@ No DB, no schema migrations, no exotic drivers. You get **fast setup** and **tra
 
 ```mermaid
 flowchart TD
-  subgraph "Robot / ROS 2 Network"
+  subgraph "Robot / ROS2 Network"
     A1["ROS 2 Nodes (sensors, nav, etc.)"]
     A2["TF / Images / Numeric topics / Text / Audio / etc"]
   end
