@@ -6,11 +6,9 @@
 
 ## Screenshots
 
+<img width="1911" height="1107" alt="Screenshot 2025-11-08 003408" src="https://github.com/user-attachments/assets/fce6498f-4c2e-4bf2-a3e1-7efc51322229" />
+
 <table>
-<tr>
-<td><img width="1911" height="1107" alt="Screenshot 2025-11-08 003408" src="https://github.com/user-attachments/assets/fce6498f-4c2e-4bf2-a3e1-7efc51322229" /></td>
-<td> <img width="1906" height="1101" alt="Screenshot 2025-11-07 232132" src="https://github.com/user-attachments/assets/ddd12550-1166-492c-a87f-30dff1a7fa46" /></td>
-</tr>
 <tr> 
 <td><img width="1910" height="1106" alt="Screenshot 2025-11-08 003714" src="https://github.com/user-attachments/assets/33a11b09-e0de-4d66-b895-cc58526ee08d" /></td>
 <td><img width="1912" height="1100" alt="Screenshot 2025-11-08 003650" src="https://github.com/user-attachments/assets/d5167fd5-fab4-4991-a446-992ca72e39df" /></td>
