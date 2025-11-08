@@ -141,7 +141,7 @@ flowchart TD
 
   X1 --> X2
   X2 --> Y["HTTP clients (curl, Python requests, etc.)"]
-  Y --> Z --> C
+  Y --> Z
 
   C -- "WebSocket" --> D["Browser Dashboard (JS ECharts)"]
 
