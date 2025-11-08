@@ -93,14 +93,14 @@ python3 rdash_agent.py \
 ## Intro & description
 **R'DASH** is a minimal, production-leaning data telemetry pipe for robots:
 * **Server (`rdash_app.py`)**: Flask + Socket.IO web app that ingests telemetry, keeps it in RAM, and broadcasts live updates to browsers.
-* **Agent (`rdash_agent.py`)**: A ROS 2 node that discovers topics, flattens structured messages into numeric key/value pairs, pushes images/video frames, and optionally summarizes point clouds.
+* **Agent (`rdash_agent.py`)**: A ROS2 node that discovers topics, flattens structured messages into numeric key/value pairs, pushes images/video frames, and optionally summarizes point clouds.
 
 No DB, no schema migrations, no exotic drivers. You get **fast setup** and **transparent behavior**, plus opt-in controls to keep the browser responsive on heavy streams (lidar-like topics).
 
 ## Features
 * **OS:** Linux/macOS/Windows (anything that runs Python 3 + Flask + rclpy; ROS typically on Linux). As a bonus the http/https host website can also be opened on a mobile device connected to the same network.
 * **Robot / sensors:** Fully topic-agnostic for numeric streams (any message that flattens to numbers). Images supported via `sensor_msgs/Image` or `sensor_msgs/CompressedImage`. TF visualized as a simple frame tree.
-* **ROS 2 distros:** Smoke-tested with **ROS 2 Jazzy**; other distros should work as long as `rclpy` is available.
+* **ROS2 distros:** Smoke-tested with **ROS2 Jazzy**; other distros should work as long as `rclpy` is available.
 * **Transport:** Pure HTTP(S) + WebSocket - no ROS in the server/web app, so you can place it anywhere (edge, admin PC, cloud with a tunnel, etc.).
 * **Topic Schema**: Custom ROS2 topics are fully supported - no fixed naming scheme is required.
 
@@ -126,7 +126,7 @@ No DB, no schema migrations, no exotic drivers. You get **fast setup** and **tra
 ```mermaid
 flowchart TD
   subgraph "Robot / ROS2 Network"
-    A1["ROS 2 Nodes (sensors, nav, etc.)"]
+    A1["ROS2 Nodes (sensors, nav, etc.)"]
     A2["TF / Images / Numeric topics / Text / Audio / etc"]
   end
 
@@ -308,7 +308,7 @@ For a quick smoke test without real robots:
 
 ```bash
 cd main/test_sim
-# Follow setup hints in setup.txt if needed (ROS 2 environment, sourcing, etc.)
+# Follow setup hints in setup.txt if needed (ROS2 environment, sourcing, etc.)
 python3 ros2_rdash_test_simulation.py
 ```
 
@@ -322,7 +322,7 @@ python3 ros2_rdash_test_simulation.py
 2. Auth: Use Authorization: Bearer <token> for all /api/* endpoints and the WebSocket. The video endpoint also accepts ?token=... as a query parameter for simple embed tests.
 3. State is RAM-only. Deleting series/logs clears in-memory buffers. Restarting the server clears all state.
 4. Streaming: Numeric data is coalesced and broadcast over WebSocket; camera frames are exposed as MJPEG at /video/<robot>/<sensor>.
-5. Topic-agnostic: The agent flattens any ROS 2 message into numeric fields and pushes to /api/push. Units/scales are attachable via --unit rules.
+5. Topic-agnostic: The agent flattens any ROS2 message into numeric fields and pushes to /api/push. Units/scales are attachable via --unit rules.
 6. Find the documentation here: *[api_documentation.pdf](https://github.com/user-attachments/files/23427688/api_documentation.pdf)*
 
 
@@ -401,7 +401,7 @@ Author Social: [LinkedIn](https://www.linkedin.com/in/saivamsikarnam/)
 ## Acknowledgments
 
 * Built with: **Flask**, **Flask-SocketIO**, **ECharts**, **rclpy**.
-* Compatible with **ROS 2** (smoke-tested on **Ubuntu 24.04** and **ROS2 Jazzy**).
+* Compatible with **ROS2** (smoke-tested on **Ubuntu 24.04** and **ROS2 Jazzy**).
 * Fonts: Orbitron / Rajdhani (included under `static/fonts/`).
 
 
