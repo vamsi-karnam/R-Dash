@@ -69,9 +69,10 @@ python3 rdash_agent.py \
 ## Table of contents
 
 * [Intro & description](#intro--description)
-* [Architecture](#architecture)
-* [Core design principles](#core-design-principles)
 * [Features](#features)
+* [Supported data](#supported-data)
+* [Core design principles](#core-design-principles)
+* [Architecture](#architecture)
 * [Directory structure](#dirctory-structure)
 * [Usage](#usage)
   * [Prerequisites](#prerequisites)
@@ -89,26 +90,36 @@ python3 rdash_agent.py \
 * [Appendix I - Flags and Env vars](#appendix-i---full-flags--env-vars)
 * [Appendix II - CLI usage examples](#appendix-ii---full-cli-examples)
 
-
 ## Intro & description
-
 **R'DASH** is a minimal, production-leaning data telemetry pipe for robots:
-
 * **Server (`rdash_app.py`)**: Flask + Socket.IO web app that ingests telemetry, keeps it in RAM, and broadcasts live updates to browsers.
 * **Agent (`rdash_agent.py`)**: A ROS 2 node that discovers topics, flattens structured messages into numeric key/value pairs, pushes images/video frames, and optionally summarizes point clouds.
 
 No DB, no schema migrations, no exotic drivers. You get **fast setup** and **transparent behavior**, plus opt-in controls to keep the browser responsive on heavy streams (lidar-like topics).
 
-### Supported Data
-**Supported ROS2 input types:**
+## Features
+* **OS:** Linux/macOS/Windows (anything that runs Python 3 + Flask + rclpy; ROS typically on Linux). As a bonus the http/https host website can also be opened on a mobile device connected to the same network.
+* **Robot / sensors:** Fully topic-agnostic for numeric streams (any message that flattens to numbers). Images supported via `sensor_msgs/Image` or `sensor_msgs/CompressedImage`. TF visualized as a simple frame tree.
+* **ROS 2 distros:** Smoke-tested with **ROS 2 Jazzy**; other distros should work as long as `rclpy` is available.
+* **Transport:** Pure HTTP(S) + WebSocket - no ROS in the server/web app, so you can place it anywhere (edge, admin PC, cloud with a tunnel, etc.).
+* **Topic Schema**: Custom ROS2 topics are fully supported - no fixed naming scheme is required.
 
+## Supported Data
+**Supported ROS2 input types:**
 * Numeric topics (anything flattenable into numbers) - **topic agnostic**.
 * Images/Video Frames via `sensor_msgs/Image` or `sensor_msgs/CompressedImage`.
 * Text/Logs via `std_msgs/String` (visualized in a rolling, console-style panel).
 * TF via `tf2_msgs/TFMessage`.
 * *(Audio endpoint is present for API compatibility but not visualised yet.)*
 * *(PointCloud2 is not visualised; use `--pc2-summarize` to publish stats as numeric.)*
+> Note: R’DASH agent automatically discovers all ROS2 topics - including custom ones. Any topic that publishes numeric, image, string, or PointCloud2 data will be captured and pushed to the server. You can use any topic name (for example, /mybot/barometer01/pressure_mb). Similarly, Non-ROS runtimes can push data directly to the R'DASH server via the REST API (see [API Docs](#api-docs)) using arbitrary sensor names as long as the topic or source is publishing data.
 
+## Core design principles
+* **Agnostic:** no assumptions about robot, OS, sensor taxonomy, or data schema.
+* **Simple to operate:** one server + one agent per ROS box.
+* **Transparent & observable:** deterministic trimming; optional UI badges for capping (if enabled in your build).
+* **No DB:** in-memory, ring-buffered, low-latency path to the browser.
+* **Minimal deps:** plain Flask/Socket.IO on the server; rclpy on the agent.
 
 ## Architecture
 
@@ -130,21 +141,6 @@ flowchart TD
 
   D -->  D1
 ```
-
-## Core design principles
-
-* **Agnostic:** no assumptions about robot, OS, sensor taxonomy, or data schema.
-* **Simple to operate:** one server + one agent per ROS box.
-* **Transparent & observable:** deterministic trimming; optional UI badges for capping (if enabled in your build).
-* **No DB:** in-memory, ring-buffered, low-latency path to the browser.
-* **Minimal deps:** plain Flask/Socket.IO on the server; rclpy on the agent.
-
-## Features
-
-* **OS:** Linux/macOS/Windows (anything that runs Python 3 + Flask + rclpy; ROS typically on Linux). As a bonus the http/https host website can also be opened on a mobile device connected to the same network.
-* **Robot / sensors:** Fully topic-agnostic for numeric streams (any message that flattens to numbers). Images supported via `sensor_msgs/Image` or `sensor_msgs/CompressedImage`. TF visualized as a simple frame tree.
-* **ROS 2 distros:** Smoke-tested with **ROS 2 Jazzy**; other distros should work as long as `rclpy` is available.
-* **Transport:** Pure HTTP(S) + WebSocket - no ROS in the server/web app, so you can place it anywhere (edge, admin PC, cloud with a tunnel, etc.).
 
 ## Dirctory structure
 
@@ -308,18 +304,16 @@ python3 ros2_rdash_test_simulation.py
 
 > Open the dashboard on a browser using `http://HOST:8080` or `https://HOST:8443` and watch dummy sensors stream.
 
-### API Docs _(API runs independently on REST endpoints, no requirement of ROS2 runtime)_
-> Everything is an HTTP API. The server accepts JSON/multipart payloads and serves lightweight JSON for status, history, and metadata.
+### API Docs
 
-> Auth: Use Authorization: Bearer <token> for all /api/* endpoints and the WebSocket. The video endpoint also accepts ?token=... as a query parameter for simple embed tests.
+> API runs independently on REST endpoints, no requirement of ROS2 runtime.
 
-> State is RAM-only. Deleting series/logs clears in-memory buffers. Restarting the server clears all state.
-
-> Streaming: Numeric data is coalesced and broadcast over WebSocket; camera frames are exposed as MJPEG at /video/<robot>/<sensor>.
-
-> Topic-agnostic: The agent flattens any ROS 2 message into numeric fields and pushes to /api/push. Units/scales are attachable via --unit rules.
-
-> Find the documentation here: *[api_documentation.pdf](https://github.com/user-attachments/files/23427688/api_documentation.pdf)*
+1. Everything is an HTTP API. The server accepts JSON/multipart payloads and serves lightweight JSON for status, history, and metadata.
+2. Auth: Use Authorization: Bearer <token> for all /api/* endpoints and the WebSocket. The video endpoint also accepts ?token=... as a query parameter for simple embed tests.
+3. State is RAM-only. Deleting series/logs clears in-memory buffers. Restarting the server clears all state.
+4. Streaming: Numeric data is coalesced and broadcast over WebSocket; camera frames are exposed as MJPEG at /video/<robot>/<sensor>.
+5. Topic-agnostic: The agent flattens any ROS 2 message into numeric fields and pushes to /api/push. Units/scales are attachable via --unit rules.
+6. Find the documentation here: *[api_documentation.pdf](https://github.com/user-attachments/files/23427688/api_documentation.pdf)*
 
 
 ## Dashboard behavior
