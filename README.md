@@ -1,4 +1,5 @@
 # R'DASH - Robot Information Telemetry Transport Dashboard
+**Version:**1.0
 **Author:** Vamsi Karnam
 **License:** Apache License 2.0
 
