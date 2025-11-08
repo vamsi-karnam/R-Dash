@@ -112,7 +112,7 @@ No DB, no schema migrations, no exotic drivers. You get **fast setup** and **tra
 * TF via `tf2_msgs/TFMessage`.
 * *(Audio endpoint is present for API compatibility but not visualised yet.)*
 * *(PointCloud2 is not visualised; use `--pc2-summarize` to publish stats as numeric.)*
-> Note: R’DASH agent automatically discovers all ROS2 topics - including custom ones. Any topic that publishes numeric, image, string, or PointCloud2 data will be captured and pushed to the server. You can use any topic name (for example, /mybot/barometer01/pressure_mb). Similarly, Non-ROS runtimes can push data directly to the R'DASH server via the REST API (see [API Docs](#api-docs)) using arbitrary sensor names as long as the topic or source is publishing data.
+> Note: R’DASH agent automatically discovers all ROS2 topics - including custom ones. Any topic that publishes numeric, image, string, or PointCloud2 data will be captured and pushed to the server. You can use any topic name (for example, mybot/barometer01/pressure_mb). Similarly, Non-ROS runtimes can push data directly to the R'DASH server via the REST API (see [API Docs](#api-docs)) using arbitrary sensor names as long as the topic or source is publishing data.
 
 ## Core design principles
 * **Agnostic:** no assumptions about robot, OS, sensor taxonomy, or data schema.
