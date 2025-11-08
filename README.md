@@ -360,7 +360,7 @@ Publishing **only the metrics you intend to visualize** is always better than du
 ## License / Author / Contact / Citation
 
 R'DASH (Robot Information Telemetry Transport Dashboard)  
-Developed by **Sai Vamsi Karnam**, 2025.  
+Developed by **Vamsi Karnam**, 2025.  
 Released under the **Apache 2.0 License**.
 
 If you use this software in any of your works, please cite:
