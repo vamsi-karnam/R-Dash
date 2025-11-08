@@ -172,7 +172,9 @@ main/
 ├── test_sim/
 │   ├── setup.txt                 
 │   └── ros2_rdash_test_simulation.py
-└── README.md                     
+└── README.md
+└── LICENSE
+└── NOTICE                    
 ```
 
 
@@ -310,12 +312,16 @@ python3 ros2_rdash_test_simulation.py
 
 ### API Docs
 > Everything is an HTTP API. The server accepts JSON/multipart payloads and serves lightweight JSON for status, history, and metadata.
+
 > Auth: Use Authorization: Bearer <token> for all /api/* endpoints and the WebSocket. The video endpoint also accepts ?token=... as a query parameter for simple embed tests.
+
 > State is RAM-only. Deleting series/logs clears in-memory buffers. Restarting the server clears all state.
+
 > Streaming: Numeric data is coalesced and broadcast over WebSocket; camera frames are exposed as MJPEG at /video/<robot>/<sensor>.
+
 > Topic-agnostic: The agent flattens any ROS 2 message into numeric fields and pushes to /api/push. Units/scales are attachable via --unit rules.
 
-Find the documentation here: *[api_documentation.pdf](https://github.com/user-attachments/files/23427688/api_documentation.pdf)*
+> Find the documentation here: *[api_documentation.pdf](https://github.com/user-attachments/files/23427688/api_documentation.pdf)*
 
 
 ## Dashboard behavior
