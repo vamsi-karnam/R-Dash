@@ -116,7 +116,7 @@ No DB, no schema migrations, no exotic drivers. You get **fast setup** and **tra
 flowchart TD
   subgraph "Robot / ROS 2 Network"
     A1["ROS 2 Nodes (sensors, nav, etc.)"]
-    A2["TF / Images / Numeric topics"]
+    A2["TF / Images / Numeric topics / Text / Audio"]
   end
 
   A1 --> A2
