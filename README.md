@@ -146,7 +146,7 @@ flowchart TD
 * **OS:** Linux/macOS/Windows (anything that runs Python 3 + Flask + rclpy; ROS typically on Linux).
 * **Robot / sensors:** Fully topic-agnostic for numeric streams (any message that flattens to numbers). Images supported via `sensor_msgs/Image` or `sensor_msgs/CompressedImage`. TF visualized as a simple frame tree.
 * **ROS 2 distros:** Smoke-tested with **ROS 2 Jazzy**; other distros should work as long as `rclpy` is available.
-* **Transport:** Pure HTTP(S) + WebSocket — no ROS in the server/web app, so you can place it anywhere (edge, admin PC, cloud with a tunnel, etc.).
+* **Transport:** Pure HTTP(S) + WebSocket - no ROS in the server/web app, so you can place it anywhere (edge, admin PC, cloud with a tunnel, etc.).
 
 ## Dirctory structure
 
@@ -240,10 +240,10 @@ Make sure host firewalls allow the chosen port. From another machine on your LAN
 * `--no-browser`: Don’t auto-open the default browser.
 
 **Environment variables:**
-* `RDASH_MAX_SAMPLES` — same as `--max-samples`.
-* `RDASH_MAX_IMAGE_BYTES` — same as `--max-image-bytes`.
-* `RDASH_MAX_AUDIO_BYTES` — limit for audio push endpoint (kept for API compatibility).
-* `RDASH_WS_FLUSH_HZ` — WebSocket coalescer rate (default **20 Hz**).
+* `RDASH_MAX_SAMPLES` - same as `--max-samples`.
+* `RDASH_MAX_IMAGE_BYTES` - same as `--max-image-bytes`.
+* `RDASH_MAX_AUDIO_BYTES` - limit for audio push endpoint (kept for API compatibility).
+* `RDASH_WS_FLUSH_HZ` - WebSocket coalescer rate (default **20 Hz**).
 
 
 
@@ -363,7 +363,7 @@ Heavy topics (e.g., lidar-like numeric explosions) can choke the browser running
 
    * Keeps only the first N keys in alphabetical order for that push.
    * **Does not alter actual numeric values** of kept keys.
-   * If you truly need more metrics, raise this value — **your machine, your call**.
+   * If you truly need more metrics, raise this value - **your machine, your call**.
 
 3. **Keep windows reasonable** at the front-end:
    The UI keeps a fixed sliding window and decimates buffered points while paused. Long pauses won’t explode memory.
@@ -379,8 +379,8 @@ Publishing **only the metrics you intend to visualize** is always better than du
 
 * **Security:** If you expose the server over the open internet, use **TLS** and **auth tokens**, and consider a VPN or a reverse proxy. Avoid simple port forwarding without security hardening.
 * **Resource risk:** Pushing very large images or lots of metrics at high Hz can exhaust CPU/RAM/network bandwidth. Start small, observe, then scale up.
-* **Agnostic by design:** rdash doesn’t guess your intent — **filter topics** (`--include/--exclude`), pick sensible **`--max-hz`**, and **cap metrics per push** for heavy streams.
-* **Persistence:** All data is in **RAM only** — restarting the server clears state.
+* **Agnostic by design:** rdash doesn’t guess your intent - **filter topics** (`--include/--exclude`), pick sensible **`--max-hz`**, and **cap metrics per push** for heavy streams.
+* **Persistence:** All data is in **RAM only** - restarting the server clears state.
 
 
 ## License / Author / Contact / Citation
@@ -497,7 +497,7 @@ What this does:
 
 * Runs **HTTP** on `http://127.0.0.1:8080` without TLS.
 * Keeps an auth token.
-* No browser auto-open—handy when running inside tmux/containers.
+* No browser auto-open; handy when running inside tmux/containers.
 
 ---
 
