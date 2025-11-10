@@ -19,53 +19,7 @@
 </tr> 
 </table>
 
-## TL;DR
-
-> For folks who already have ROS2 working and just want to see data flow end-to-end.
-> Check supported data types from [supported input types](#supported-data) and [prerequisites](#prerequisites).
-
-1. **Clone the repo:**
-
-```bash
-git clone https://github.com/vamsi-karnam/rdash.git
-```
-
-2. **(Optional) Put TLS certs** in `ros2_rdash_app/source/certs/` as `cert.pem` + `key.pem` (self-signed at your own risk).
-
-3. **Run the server:** *HTTPS is optional*
-
-```bash
-cd main/ros2_rdash_app/source
-python3 -m venv .venv && source .venv/bin/activate (optional)
-pip install -r requirements.txt
-```
-```bash
-python3 rdash_app.py --host 0.0.0.0 --port 8443 --auth-token "<SECRET>"
-# If no certs found in certs folder, the server auto-falls back to HTTP on port 8080 unless you pass --cert/--key.
-```
-
-4. **Run the agent on your ROS2 box:**
-
-```bash
-cd main/ros2_rdash_agent/source
-python3 -m venv .venv && source .venv/bin/activate (optional)
-pip install -r requirements.txt
-```
-```bash
-python3 rdash_agent.py \
-  --server https://<SERVER-IP>:8443 \
-  --token "<SECRET>" \
-  --robot-name mybot-01 \
-  --include ".*" \
-  --max-hz 10 \
-  --max-metrics-per-push 32 \
-  --pc2-summarize
-```
-
-5. **Open the dashboard:**
-   If the browser didn’t auto-open, visit `https://<SERVER-IP>:8443/` (or `http://<SERVER-IP>:8080/` if running without TLS) on any device on the same LAN.
-   Enter your token if prompted. You should see your robot(s) appear and live data streaming.
-
+> For folks who already have ROS2 working and just want to see data flow end-to-end see [TL;DR](#tldr).
 
 ## Table of contents
 
@@ -90,6 +44,7 @@ python3 rdash_agent.py \
 * [Acknowledgments](#acknowledgments)
 * [Appendix I - Flags and Env vars](#appendix-i---full-flags--env-vars)
 * [Appendix II - CLI usage examples](#appendix-ii---full-cli-examples)
+* [TL;DR](#tldr)
 
 ## Intro & description
 
@@ -648,6 +603,54 @@ What this does:
 * Summarizes `PointCloud2` to min/max/mean stats.
 * Caps outgoing numeric rate (per sensor) at 10 Hz.
 * Allows up to 32 metrics per push to avoid choking frontend/WS.
+
+
+## TL;DR
+
+> Check supported data types from [supported input types](#supported-data) and [prerequisites](#prerequisites).
+
+1. **Clone the repo:**
+
+```bash
+git clone https://github.com/vamsi-karnam/rdash.git
+```
+
+2. **(Optional) Put TLS certs** in `ros2_rdash_app/source/certs/` as `cert.pem` + `key.pem` (self-signed at your own risk).
+
+3. **Run the server:** *HTTPS is optional*
+
+```bash
+cd main/ros2_rdash_app/source
+python3 -m venv .venv && source .venv/bin/activate (optional)
+pip install -r requirements.txt
+```
+```bash
+python3 rdash_app.py --host 0.0.0.0 --port 8443 --auth-token "<SECRET>"
+# If no certs found in certs folder, the server auto-falls back to HTTP on port 8080 unless you pass --cert/--key.
+```
+
+4. **Run the agent on your ROS2 box:**
+
+```bash
+cd main/ros2_rdash_agent/source
+python3 -m venv .venv && source .venv/bin/activate (optional)
+pip install -r requirements.txt
+```
+```bash
+python3 rdash_agent.py \
+  --server https://<SERVER-IP>:8443 \
+  --token "<SECRET>" \
+  --robot-name mybot-01 \
+  --include ".*" \
+  --max-hz 10 \
+  --max-metrics-per-push 32 \
+  --pc2-summarize
+```
+
+5. **Open the dashboard:**
+   If the browser didn’t auto-open, visit `https://<SERVER-IP>:8443/` (or `http://<SERVER-IP>:8080/` if running without TLS) on any device on the same LAN.
+   Enter your token if prompted. You should see your robot(s) appear and live data streaming.
+
 
 ---
 *"Data should empower, not overwhelm"*
