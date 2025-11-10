@@ -93,7 +93,7 @@ R’DASH is data-type agnostic at its core, it automatically discovers and strea
 
 **IMPORTANT:** ***DDS topics***
 
-- Any topic whose path includes the segment "dds" (case-insensitive) is automatically grouped in the DDS side panel, separate from regular robot sensors. This makes it easy to route diagnostics, network metrics, or system-level telemetry from DDS bridges or adapters without cluttering the main dashboard.
+- Any text or numeric topic whose path includes the segment "dds" (case-insensitive) is automatically grouped in the DDS side panel, separate from regular robot sensors. This makes it easy to route diagnostics, network metrics, or system-level telemetry from DDS bridges or adapters without cluttering the main dashboard.
 
 > Example: /infra/dds/network/latency_ms, /dds/system/diagnostics
 
