@@ -344,7 +344,7 @@ python3 ros2_rdash_test_simulation.py
 3. State is RAM-only. Deleting series/logs clears in-memory buffers. Restarting the server clears all state.
 4. Streaming: Numeric data is coalesced and broadcast over WebSocket; camera frames are exposed as MJPEG at /video/<robot>/<sensor>.
 5. Topic-agnostic: The agent flattens any ROS2 message into numeric fields and pushes to /api/push. Units/scales are attachable via --unit rules.
-6. Find the documentation here: *[api_documentation.pdf](https://github.com/user-attachments/files/23427688/api_documentation.pdf)*
+6. Find the documentation here: *[latest API docs](https://github.com/vamsi-karnam/rdash/tree/main/docs)*
 
 
 ## Dashboard behavior
