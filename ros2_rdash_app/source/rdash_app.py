@@ -65,6 +65,7 @@ class TimeSeriesStore:
         self.lock = threading.Lock()
         self.data: Dict[Tuple[str, str, str], deque] = defaultdict(lambda: deque(maxlen=maxlen))
         self.latest_jpeg: Dict[Tuple[str, str], bytes] = {}
+        self.latest_pc2: Dict[Tuple[str, str], bytes] = {}                # NEW: last PC2 visual frame (binary)
         self.latest_audio: Dict[Tuple[str, str], Tuple[bytes, str]] = {}  # (bytes, mime)
         self.units: Dict[Tuple[str, str, str], str] = {}                  # (robot,sensor,metric)->unit
         self.types: Dict[Tuple[str, str], str] = {}                       # last msg type per (robot,sensor)
@@ -118,6 +119,12 @@ class TimeSeriesStore:
     def set_jpeg(self, robot: str, sensor: str, jpg: bytes, typ: Optional[str]):
         with self.lock:
             self.latest_jpeg[(robot, sensor)] = jpg
+            if typ: self.types[(robot, sensor)] = typ
+            self._touch(robot, sensor)
+
+    def set_pc2_bin(self, robot: str, sensor: str, blob: bytes, typ: Optional[str] = None):
+        with self.lock:
+            self.latest_pc2[(robot, sensor)] = blob
             if typ: self.types[(robot, sensor)] = typ
             self._touch(robot, sensor)
 
@@ -404,6 +411,42 @@ def register_http_handlers(app: Flask, sio: SocketIO, store: TimeSeriesStore):
                 return jsonify({"ok": True})
         except Exception:
             return jsonify({"error":"bad image payload"}), 400
+        
+    # MEDIA PUSH: PC2 binary (visual frames)
+    @app.route("/api/push_pc2", methods=["POST"])
+    def api_push_pc2():
+        if not _authorized():
+            return jsonify({"error":"unauthorized"}), 401
+        try:
+            robot = request.args.get("robot") or request.form.get("robot") or "default"
+            sensor = request.args.get("sensor") or request.form.get("sensor") or "lidar/points"
+            ts = float(request.args.get("t") or time.time())
+            blob = request.get_data(cache=False, as_text=False)
+            if not blob:
+                return jsonify({"error":"no data"}), 400
+            store.set_pc2_bin(robot, sensor, blob, typ="sensor_msgs/msg/PointCloud2")
+            # Relay to WS as [meta, binary] — meta first arg, bytes second arg
+            meta = {"robot": robot, "sensor": sensor, "t": ts}
+            try:
+                sio.emit('pc2_frame', {"meta": meta, "buf": blob}, namespace="/ws")
+            except Exception:
+                pass
+            return jsonify({"ok": True})
+        except Exception:
+            return jsonify({"error":"bad pc2 payload"}), 400
+
+    # Fetch last PC2 frame (binary) to prime a viewer when opening
+    @app.route("/api/pc2_last/<robot>/<path:sensor>")
+    def api_pc2_last(robot, sensor):
+        if not _authorized():
+            return Response("unauthorized", status=401)
+        with store.lock:
+            blob = store.latest_pc2.get((robot, sensor))
+        if not blob:
+            return Response("no frame", status=404)
+        resp = Response(blob, mimetype="application/octet-stream")
+        resp.headers['Cache-Control'] = 'no-store'
+        return resp
 
     # MEDIA PUSH: AUDIO (retained for API compatibility)
     @app.route("/api/push_audio", methods=["POST"])

@@ -84,6 +84,8 @@ function _ensureDdsIndex(robot) {
 
 // Text logs state
 const logsBySensor = new Map();     // key -> { containerEl, paused, follow, lines }
+// PC2 visual state: key -> { canvas, ctx, mode:'chart'|'visual', paused, frames:[], maxFrames, hasIntensity }
+const pc2Views = new Map();
 
 // Sliding window params
 const WINDOW_SEC = 10;      // visible span
@@ -298,6 +300,21 @@ function buildChart(canvas, sensorKey, hist, unitsMap, robot, sensor) {
   toolbar.appendChild(pauseBtn);
   toolbar.appendChild(delBtn);
 
+  // --- LiDAR view switch (visible when this sensor is PointCloud2) ---
+  const viewSwitch = document.createElement('div');
+  viewSwitch.style.marginLeft = 'auto';
+  viewSwitch.style.display = 'flex';
+  viewSwitch.style.gap = '6px';
+  const btnChart = document.createElement('button');
+  btnChart.className = 'btn secondary';
+  btnChart.textContent = 'Chart';
+  const btnVisual = document.createElement('button');
+  btnVisual.className = 'btn secondary';
+  btnVisual.textContent = 'Visual';
+  viewSwitch.appendChild(btnChart);
+  viewSwitch.appendChild(btnVisual);
+  toolbar.appendChild(viewSwitch);
+
   // Plot container (DIV), set explicit size for crisp axis
   const elc = document.createElement('div');
   elc.style.width = '100%';
@@ -386,6 +403,17 @@ function buildChart(canvas, sensorKey, hist, unitsMap, robot, sensor) {
     entry.paused = !entry.paused;
     pauseBtn.textContent = entry.paused ? 'Resume' : 'Pause';
 
+    // NEW: keep PC2 visual in lockstep with PC2 chart
+    const v = pc2Views.get(sensorKey);
+    if (v) {
+      v.paused = entry.paused;
+      // if resuming while visual is the active mode, redraw what we have buffered
+      if (!v.paused && v.mode === 'visual') {
+        try { renderPc2(v); } catch (_) {}
+      }
+    }
+
+
     if (entry.paused) {
       entry.pauseStarted = Date.now();
       entry.bufferByMetric.clear();
@@ -459,6 +487,15 @@ function buildChart(canvas, sensorKey, hist, unitsMap, robot, sensor) {
       entry.dropped = 0;
       entry.capped = false;
 
+      // NEW: also clear PC2 visual frames/canvas for this sensor
+      const v = pc2Views.get(sensorKey);
+      if (v) {
+        v.frames.length = 0;
+        v.hasIntensity = false;
+        try { v.ctx.clearRect(0, 0, v.canvas.width, v.canvas.height); } catch (_) {}
+      }
+
+
       // If it was paused, flip back to running AND update the button label
       if (entry.paused) {
         entry.paused = false;
@@ -514,6 +551,56 @@ function buildChart(canvas, sensorKey, hist, unitsMap, robot, sensor) {
     _resize: resize,
     sensorKey                   // NEW: used for building stable IDs
   });
+
+  // Wire view toggle if this is a LiDAR (PointCloud2) — fall back if not
+  const isPc2 = (!!unitsMap && Object.keys(unitsMap).some(k => k.startsWith('pc2.'))) || /lidar|points/i.test(sensor);
+  const setMode = (mode) => {
+    btnChart.disabled = (mode === 'chart');
+    btnVisual.disabled = (mode === 'visual');
+    elc.style.display = (mode === 'chart') ? '' : 'none';
+    // Visual canvas lives next to chart, created lazily
+    let v = pc2Views.get(sensorKey);
+    if (!v) {
+      const c = document.createElement('canvas');
+      c.className = 'pc2-canvas';
+      c.style.width = '100%';
+      c.style.height = '320px';
+      c.width = c.clientWidth || 640;
+      c.height = 320;
+      wrap.appendChild(c);
+      v = {
+        canvas: c,
+        ctx: c.getContext('2d'),
+        mode: 'chart',
+        paused: false,
+        frames: [],      // each: {pts: Float32Array, hasI:bool}
+        maxFrames: 6,
+        hasIntensity: false,
+      };
+      pc2Views.set(sensorKey, v);
+      // placeholder text until frames arrive
+      v.ctx.fillStyle = '#9aa0b7';
+      v.ctx.font = '14px sans-serif';
+      v.ctx.fillText('Waiting for PC2 frames… (enable --pc2-visual on agent)', 12, 22);
+    }
+    v.mode = mode;
+    v.canvas.style.display = (mode === 'visual') ? '' : 'none';
+    // kick a resize for crispness
+    if (mode === 'visual') {
+      const dpr = Math.max(window.devicePixelRatio || 1, 1);
+      v.canvas.width = v.canvas.clientWidth * dpr;
+      v.canvas.height = 320 * dpr;
+      renderPc2(v);
+    }
+  };
+  btnChart.onclick = () => setMode('chart');
+  btnVisual.onclick = () => setMode('visual');
+  if (isPc2) {
+    // default to Chart; Visual available
+    setMode('chart');
+  } else {
+    viewSwitch.style.display = 'none';
+  }
 }
 
 function updateAxesWindow(entry, latestMs) {
@@ -1159,6 +1246,41 @@ function ensureSocket(){
      appendLogLine(sensorKey, t, text, level);
    });
 
+// NEW: live PC2 frames (binary)
+  ws.on('pc2_frame', (payload) => {
+    const toAB = async (any) => {
+      if (!any) return null;
+      if (any instanceof ArrayBuffer) return any;
+      if (typeof Blob !== 'undefined' && any instanceof Blob && any.arrayBuffer) return any.arrayBuffer();
+      if (any && any.type === 'Buffer' && Array.isArray(any.data)) return Uint8Array.from(any.data).buffer;
+      if (any.buffer instanceof ArrayBuffer) return any.buffer;
+      return null;
+    };
+
+    (async () => {
+      try {
+        if (!payload) return;
+        const { meta, buf } = payload;
+        if (!meta || !buf) return;
+        const ab = await toAB(buf);
+        if (!ab) return;
+        const { robot, sensor } = meta;
+        const sensorKey = `${robot}/${sensor}`;
+        const v = pc2Views.get(sensorKey);
+        if (!v || v.mode !== 'visual') return;
+        // NEW: respect pause state (shared with chart)
+        if (v.paused) return;
+        const arr = decodePc2(ab);
+        if (!arr) return;
+        v.hasIntensity = arr.hasI;
+        v.frames.push(arr);
+        if (v.frames.length > v.maxFrames) v.frames.shift();
+        renderPc2(v);
+      } catch (e) {
+        console.warn('pc2_frame error', e);
+      }
+    })();
+  });
 }
 
 // Boot
@@ -1175,3 +1297,74 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(() => { if (!currentRobot) navigateOverview(); }, 1500);
 });
 
+// PC2 helpers (binary)
+function decodePc2(buf) {
+  // Header: 'PC2F' + u32 ver + u32 fields + u32 n
+  if (buf.byteLength < 16) return null;
+  const u8 = new Uint8Array(buf, 0, 4);
+  if (u8[0] !== 0x50 || u8[1] !== 0x43 || u8[2] !== 0x32 || u8[3] !== 0x46) return null; // 'PC2F'
+  const dv = new DataView(buf, 4);
+  const ver = dv.getUint32(0, true);
+  const fields = dv.getUint32(4, true);
+  const n = dv.getUint32(8, true);
+  if (ver !== 1 || n === 0) return null;
+  const hasI = !!(fields & 0x2);
+  const stride = hasI ? 4 : 3;
+  const f32 = new Float32Array(buf, 16);
+  if (f32.length < n * stride) return null;
+  return { pts: f32.subarray(0, n * stride), hasI };
+}
+
+function renderPc2(view) {
+  const { canvas, ctx, frames, hasIntensity } = view;
+  const dpr = Math.max(window.devicePixelRatio || 1, 1);
+ const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  // simple world->screen fit
+  // Compute bounds from newest frame (fallback to defaults)
+  let minX=1e9, maxX=-1e9, minY=1e9, maxY=-1e9, minZ=1e9, maxZ=-1e9, minI=1e9, maxI=-1e9;
+  const newest = frames[frames.length - 1];
+  if (newest) {
+    const stride = newest.hasI ? 4 : 3;
+    const p = newest.pts;
+    for (let i=0;i<p.length;i+=stride){
+      const x=p[i], y=p[i+1], z=p[i+2];
+      if (x<minX) minX=x; if (x>maxX) maxX=x;
+      if (y<minY) minY=y; if (y>maxY) maxY=y;
+      if (z<minZ) minZ=z; if (z>maxZ) maxZ=z;
+      if (stride===4){ const iv=p[i+3]; if (iv<minI) minI=iv; if (iv>maxI) maxI=iv; }
+    }
+  } else {
+    minX=-5; maxX=5; minY=-5; maxY=5; minZ=-1; maxZ=1; minI=0; maxI=1;
+  }
+  const pad = 0.1;
+  const sx = w / ((maxX-minX)||1) * (1 - pad*2);
+  const sy = h / ((maxY-minY)||1) * (1 - pad*2);
+  const kx = sx, ky = -sy;
+  const ox = w * pad - minX * kx;
+  const oy = h * (1 - pad) - minY * ky;
+  // draw older frames with lower alpha
+  for (let fi=0; fi<frames.length; fi++){
+    const fr = frames[fi];
+    const stride = fr.hasI ? 4 : 3;
+    const p = fr.pts;
+    const alpha = 0.2 + 0.8 * (fi+1)/frames.length;
+    ctx.globalAlpha = alpha * 0.9;
+    for (let i=0;i<p.length;i+=stride){
+      const x=p[i], y=p[i+1], z=p[i+2];
+      let col = 200;
+      if (hasIntensity && stride===4){
+        const iv = p[i+3];
+        const t = (iv - minI) / ((maxI-minI)||1);
+        col = 60 + Math.max(0, Math.min(1, t)) * 195;
+      } else {
+        const t = (z - minZ) / ((maxZ-minZ)||1);
+        col = 60 + Math.max(0, Math.min(1, t)) * 195;
+      }
+      ctx.fillStyle = `rgb(${col},${col},${255})`;
+      const sxp = x*kx + ox, syp = y*ky + oy;
+      ctx.fillRect(sxp, syp, Math.max(1, 2*dpr), Math.max(1, 2*dpr));
+    }
+  }
+  ctx.globalAlpha = 1;
+}

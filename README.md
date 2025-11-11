@@ -1,4 +1,4 @@
-# R'DASH - Robot Information Telemetry Transport Dashboard (v1.1)
+# R'DASH - Robot Information Telemetry Transport Dashboard (v1.2)
 **Author:** Vamsi Karnam
 
 **License:** Apache License 2.0
@@ -8,7 +8,14 @@
 ## Version history
 
 - rdash_v1.0: Original development version
-- rdash_v1.1: Original development version (added DDS topic filtering, smoother streaming, and robust QoS support)
+- rdash_v1.1: Second development version
+  * Changelog:
+  - DDS topic filtering
+  - Smoother streaming and robust QoS support 
+- rdash_v1.2: First beta release
+  * Changelog:
+  - LiDAR Point Cloud Visualisation support
+  - Zoom/Pan on charts (LShift+Scroll/LShift+LClick+Drag)
 
 ## Screenshots
 
@@ -21,6 +28,8 @@
 <td><img width="1906" height="1102" alt="Screenshot 2025-11-07 232332" src="https://github.com/user-attachments/assets/60da1a2a-5c23-42ea-a3aa-ea11a70a2f18" /></td>
 <td><img width="1912" height="1106" alt="Screenshot 2025-11-07 232312" src="https://github.com/user-attachments/assets/ed0f6b09-d7f6-491c-b81c-40b117e56a53" /></td>
 <td><img width="1910" height="1105" alt="Screenshot 2025-11-07 232148" src="https://github.com/user-attachments/assets/734715c8-fea0-4c1a-acf4-517859f4e321" /></td>
+<td><img width="1910" height="1105" alt="Screenshot 2025-11-07 232148" src="dds screenshot" /></td>
+<td><img width="1910" height="1105" alt="Screenshot 2025-11-07 232148" src="lidar screenshot" /></td>
 </tr> 
 </table>
 
@@ -121,7 +130,9 @@ R’DASH is data-type agnostic at its core, it automatically discovers and strea
 
 - Type: sensor_msgs/PointCloud2
 
-- Visualization: Not rendered directly in rdash v1.x, but the agent can summarize it into numeric statistics (min/max/mean) using --pc2-summarize.
+- Visualization: Rendered in the "Visual" tab under sensor dropdown in rdash v1.2 using --pc2-visual.
+
+- Summary: The agent can summarize pc2 data into numeric statistics (min/max/mean) using --pc2-summarize.
 
 - Best for: LiDARs or depth sensors where quick numeric insight is enough.
 
@@ -225,7 +236,7 @@ ros2 topic list
 
 ### Server
 
-**Install:**
+**Step 1 - Install:**
 
 ```bash
 cd main/ros2_rdash_app/source
@@ -241,20 +252,24 @@ pip install -r requirements.txt
 **Run:**
 
 ```bash
-python3 rdash_app.py --host 0.0.0.0 --port 8443 --auth-token "SET-YOUR-SECRET-KEY"
+python3 rdash_app.py \
+--host 0.0.0.0 \
+--port 8443 \
+--auth-token "SET-YOUR-SECRET-KEY"
 ```
 
 > If no cert is found, rdash_app.py falls back to HTTP on port **8080** (unless you pass `--cert/--key`).
 
-**Access the dashboard**
+**Step 2 - Access the dashboard**
 Open: `https://<HOST-IP>:8443/` (or `http://<HOST-IP>:8080/`) on a browser if the browser does not auto open.
 
 **Alternative LAN access:**
 Make sure host firewalls allow the chosen port. From another machine on your LAN:
 `https://<SERVER-IP>:8443/` (or `http://<SERVER-IP>:8080/`)
 
-#### Command flags & Env variables
-**Command flags (rdash_app.py):**
+#### Command flags & Env variables for rdash_app.py
+
+**Command flags:**
 * `--host` *(default: 0.0.0.0)*: Bind address.
 * `--port` *(default: 8443)*: HTTPS port. (Falls back to `8080` for HTTP if no certs are available in certs directory.)
 * `--auth-token`: Enables Bearer-token auth for all endpoints and WebSocket.
@@ -275,7 +290,7 @@ Make sure host firewalls allow the chosen port. From another machine on your LAN
 ### Agent
 > On your ROS2 machine
 
-**Install:**
+**Step 1 - Install:**
 
 ```bash
 cd main/ros2_rdash_agent/source
@@ -283,7 +298,7 @@ python3 -m venv .venv && source .venv/bin/activate (optional)
 pip install -r requirements.txt
 ```
 
-**Run:**
+**Step 2 - Run:**
 
 ```bash
 python3 rdash_agent.py \
@@ -299,9 +314,9 @@ python3 rdash_agent.py \
   --pc2-summarize
 ```
 
-#### Command flags
-**Command flags (rdash_agent.py):**
+#### Command flags for rdash_agent.py
 
+**Command flags:**
 * `--server` **(required)**: Base URL for the app (e.g., `https://HOST:8443` or `http://HOST:8080`).
 * `--token`: Must match the server’s `--auth-token` if auth is enabled.
 * `--robot-name` **(required)**: Friendly display name (e.g., `testsim-001`).
@@ -315,6 +330,9 @@ python3 rdash_agent.py \
 * `--max-metrics-per-push` *(default 32, 0 = unlimited)*: **Trims** a large numeric dict to the first N keys (sorted) to avoid choking the UI/WS path.
   * **Important:** This **does not change numeric values**, only **limits the number of keys per push**.
   * If you need exact full fidelity for a specific topic, increase this value depending on your hardware.
+* `--pc2-visual` *(default disabled)*: Adding the flag enables live PointCloud2 visual streaming.
+  * `--pc2-voxel` *(default 0.10)*: Voxel size in meters for downsampling.
+  * `--pc2-max-points` *(default 30000)*: Hard cap on points per frame after voxel filter.
 
 **Tip:** You can run **multiple agents** (one per robot/device/ROS2 node) pointed at the same server.
 
@@ -431,7 +449,7 @@ Author Social: [LinkedIn](https://www.linkedin.com/in/saivamsikarnam/)
 ### `rdash_app.py` (server)
 
 **Flags**
-
+* `--help` *(show all flags)*
 * `--host` *(str, default: 0.0.0.0)*
 * `--port` *(int, default: 8443)*
 * `--auth-token` *(str)*
@@ -452,7 +470,7 @@ Author Social: [LinkedIn](https://www.linkedin.com/in/saivamsikarnam/)
 ### `rdash_agent.py` (agent)
 
 **Flags**
-
+* `--help` *(show all flags)*
 * `--server` *(required)*
 * `--token`
 * `--robot-name` *(required)*
@@ -465,6 +483,9 @@ Author Social: [LinkedIn](https://www.linkedin.com/in/saivamsikarnam/)
 * `--max-metrics-per-push` *(int; default 32; 0 = unlimited)*
 * `--ca-bundle` *(Path to a CA bundle for TLS verification; default None)*
 * `--insecure-tls` *(Skip TLS verification; default None)*
+* `--pc2-visual`
+  * `--pc2-voxel` *(default 0.10)*
+  * `--pc2-max-points` *(default 30000)*
 
 **Behavior notes**
 
@@ -593,7 +614,10 @@ python3 rdash_agent.py \
   --pc2-summarize \
   --max-hz 10 \
   --max-metrics-per-push 32 \
-  --insecure-tls
+  --insecure-tls \
+  --pc2-visual \
+  --pc2-voxel 0.10 \
+  --pc2-max-points 5000
 ```
 
 What this does:
@@ -607,6 +631,9 @@ What this does:
 * Summarizes `PointCloud2` to min/max/mean stats.
 * Caps outgoing numeric rate (per sensor) at 10 Hz.
 * Allows up to 32 metrics per push to avoid choking frontend/WS.
+* Converts point cloud data to visualisations
+  * pc2 with voxel downsampling 0.10
+  * pc2 number of points per API push 5000
 
 
 ## TL;DR
@@ -629,7 +656,10 @@ python3 -m venv .venv && source .venv/bin/activate (optional)
 pip install -r requirements.txt
 ```
 ```bash
-python3 rdash_app.py --host 0.0.0.0 --port 8443 --auth-token "<SECRET>"
+python3 rdash_app.py \
+--host 0.0.0.0 \
+--port 8443 \
+--auth-token "<SECRET>"
 # If no certs found in certs folder, the server auto-falls back to HTTP on port 8080 unless you pass --cert/--key.
 ```
 
@@ -648,7 +678,8 @@ python3 rdash_agent.py \
   --include ".*" \
   --max-hz 10 \
   --max-metrics-per-push 32 \
-  --pc2-summarize
+  --pc2-summarize \
+  --pc2-visual
 ```
 
 5. **Open the dashboard:**

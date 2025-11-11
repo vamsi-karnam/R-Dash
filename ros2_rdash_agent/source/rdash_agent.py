@@ -104,7 +104,9 @@ class UrdafAgent(Node):
     def __init__(self, robot: str, include: Optional[str], exclude: Optional[str],
                  server: str, token: Optional[str], max_hz: float,
                  verify: Optional[str] | bool, numeric_qos: str,
-                 ts_pref: str, unit_rules_raw: List[str], pc2_flag: bool, max_metrics_per_push: int = 32):
+                 ts_pref: str, unit_rules_raw: List[str],
+                 pc2_flag: bool, max_metrics_per_push: int = 32,
+                 pc2_visual: bool = False, pc2_voxel: float = 0.10, pc2_max_points: int = 30000):
         super().__init__('ritt_agent')
         self.robot = robot
         self.inc = re.compile(include) if include else None
@@ -115,6 +117,10 @@ class UrdafAgent(Node):
         self.unit_rules = parse_unit_rules(unit_rules_raw)
         self.pc2_flag = pc2_flag
         self.max_metrics_per_push = max(0, max_metrics_per_push)
+        # PointCloud2 visual streaming (off by default)
+        self.pc2_visual = bool(pc2_visual)
+        self.pc2_voxel = float(pc2_voxel)
+        self.pc2_max_points = int(pc2_max_points)
 
         # HTTP with retries
         self.session = requests.Session()
@@ -206,7 +212,7 @@ class UrdafAgent(Node):
             elif msg_type in ('tf2_msgs/msg/TFMessage',):
                 subs.append(self.create_subscription(TFMessage, topic, self.on_tf, self.qos_num_best))
             elif msg_type == 'sensor_msgs/msg/PointCloud2':
-                subs.append(self.create_subscription(PointCloud2, topic, lambda m, t=topic, mt=msg_type: self.on_pc2(t, mt, m), self.qos_num_best))
+                subs.append(self.create_subscription(PointCloud2, topic, lambda m, t=topic, mt=msg_type: self.on_pc2(t, mt, m), self.qos_num_best)) # no change needed
             elif msg_type == 'std_msgs/msg/String':
                 subs.append(self.create_subscription(String, topic, lambda m, t=topic, mt=msg_type: self.on_string(t, mt, m), self.qos_num_best))
             else:
@@ -301,18 +307,101 @@ class UrdafAgent(Node):
             pass
 
     def on_pc2(self, topic: str, msg_type: str, msg: PointCloud2):
-        if not self.pc2_flag: return
         sensor = self._sensor_name(topic)
-        if not self.throttle_ok(sensor): return
-        stats = pc2_summarize(msg, target_points=2048)
-        payload = {
-            "robot": self.robot,
-            "sensor": sensor,
-            "t": self._pick_time(msg),
-            "data": stats,
-            "type": msg_type
-        }
-        self._post_json("/api/push", payload)
+        ts = self._pick_time(msg)
+
+        # Always: numeric summary (existing behavior)
+        if self.pc2_flag and self.throttle_ok(sensor):
+            stats = pc2_summarize(msg, target_points=2048)
+            payload = {
+                "robot": self.robot,
+                "sensor": sensor,
+                "t": ts,
+                "data": stats,
+                "type": msg_type
+           }
+            self._post_json("/api/push", payload)
+
+        # Optional: binary visual frames
+        if not self.pc2_visual:
+            return
+        try:
+            frame = self._pc2_to_binary(msg)
+            if not frame:
+                return
+            # POST raw bytes; server will broadcast via WS as binary
+            url = f"{self.server}/api/push_pc2"
+            params = {"robot": self.robot, "sensor": sensor, "t": f"{ts:.6f}"}
+            r = self.session.post(url, params=params, data=frame,
+                                  headers={**self.headers, "Content-Type": "application/octet-stream"},
+                                  timeout=2, verify=self.verify)
+            r.raise_for_status()
+        except Exception:
+            pass
+
+    def _pc2_to_binary(self, msg: PointCloud2) -> Optional[bytes]:
+        """
+        Convert PointCloud2 to compact binary:
+        Header:
+          b'PC2F' + <u32 version=1> + <u32 fields_bitmask> + <u32 npoints>
+        fields_bitmask: bit0=xyz present (always 1), bit1=intensity present (0/1)
+        Payload:
+          float32 array of [x,y,z,(i?)] * npoints
+        Downsampling: voxel grid (size=self.pc2_voxel), and a hard cap self.pc2_max_points.
+        """
+        try:
+            import struct
+            fields = {f.name: (f.offset, f.datatype, f.count) for f in msg.fields}
+            has_intensity = 'intensity' in fields and fields['intensity'][1] in (7, 8)  # float32/64
+            total = msg.width * msg.height
+            if total <= 0 or msg.point_step <= 0:
+                return None
+            # voxel grid
+            vox = self.pc2_voxel
+            seen = set()
+            pts = []
+            buf = msg.data
+            step = msg.point_step
+            # offsets
+            off_x = fields.get('x', (None, None, None))[0]
+            off_y = fields.get('y', (None, None, None))[0]
+            off_z = fields.get('z', (None, None, None))[0]
+            off_i = fields.get('intensity', (None, None, None))[0] if has_intensity else None
+            if None in (off_x, off_y, off_z):
+                return None
+            # tightly loop with struct unpack
+            for idx in range(total):
+                base = idx * step
+                if base + off_z + 4 > len(buf):
+                    break
+                x = struct.unpack_from('<f', buf, base + off_x)[0]
+                y = struct.unpack_from('<f', buf, base + off_y)[0]
+                z = struct.unpack_from('<f', buf, base + off_z)[0]
+                vx = int(x / vox); vy = int(y / vox); vz = int(z / vox)
+                key = (vx, vy, vz)
+                if key in seen:
+                    continue
+                seen.add(key)
+                if has_intensity:
+                    if base + off_i + 4 <= len(buf):
+                        i = struct.unpack_from('<f', buf, base + off_i)[0]
+                    else:
+                        i = 0.0
+                    pts.extend((x, y, z, float(i)))
+                else:
+                    pts.extend((x, y, z))
+                if (len(pts) // (4 if has_intensity else 3)) >= self.pc2_max_points:
+                    break
+            n = len(pts) // (4 if has_intensity else 3)
+            if n == 0:
+                return None
+            fields_mask = 0x1 | (0x2 if has_intensity else 0x0)
+            header = b'PC2F' + struct.pack('<III', 1, fields_mask, n)
+            import array
+            arr = array.array('f', pts)
+            return header + arr.tobytes()
+        except Exception:
+            return None
 
     def on_compressed(self, topic: str, msg_type: str, msg: CompressedImage):
         sensor = self._sensor_name(topic)
@@ -395,15 +484,16 @@ def main():
     ap.add_argument("--max-hz", type=float, default=10.0, help="Max numeric push rate per sensor")
     ap.add_argument("--insecure-tls", action="store_true", help="Skip TLS verify (testing only)")
     ap.add_argument("--ca-bundle", help="Path to a CA bundle for TLS verification")
-    ap.add_argument("--numeric-qos", choices=["best","reliable","dual"], default="best",
-                    help="QoS for numeric topics (default: best)")
-    ap.add_argument("--timestamp", choices=["header","receive"], default="receive",
-                    help="Prefer header.stamp or receive time for t field")
-    ap.add_argument("--unit", action="append",
-                    help='Tag unit+scale rules; repeatable. Format: "<regex>=<UNIT>:<scale>"')
+    ap.add_argument("--numeric-qos", choices=["best","reliable","dual"], default="best",help="QoS for numeric topics (default: best)")
+    ap.add_argument("--timestamp", choices=["header","receive"], default="receive",help="Prefer header.stamp or receive time for t field")
+    ap.add_argument("--unit", action="append",help='Tag unit+scale rules; repeatable. Format: "<regex>=<UNIT>:<scale>"')
     ap.add_argument("--pc2-summarize", action="store_true", help="Summarize PointCloud2 to stats (min/max/mean)")
-    ap.add_argument("--max-metrics-per-push", type=int, default=32,
-                help="Hard cap on number of numeric metrics per push (default: 32, 0 = unlimited)")
+    ap.add_argument("--max-metrics-per-push", type=int, default=32,help="Hard cap on number of numeric metrics per push (default: 32, 0 = unlimited)")
+    # PC2 visual streaming (off by default)
+    ap.add_argument("--pc2-visual", action="store_true", help="Enable live PointCloud2 visual streaming (binary)")
+    ap.add_argument("--pc2-voxel", type=float, default=0.10, help="Voxel size in meters for downsampling (default: 0.10)")
+    ap.add_argument("--pc2-max-points", type=int, default=30000, help="Hard cap on points per frame after voxel filter")
+
     args = ap.parse_args()
 
     verify = args.ca_bundle if args.ca_bundle else (False if args.insecure_tls else True)
@@ -413,7 +503,8 @@ def main():
                       args.server, args.token, args.max_hz, verify,
                       numeric_qos=args.numeric_qos,
                       ts_pref=args.timestamp, unit_rules_raw=args.unit or [],
-                      pc2_flag=args.pc2_summarize, max_metrics_per_push=args.max_metrics_per_push)
+                      pc2_flag=args.pc2_summarize, max_metrics_per_push=args.max_metrics_per_push,
+                      pc2_visual=args.pc2_visual, pc2_voxel=args.pc2_voxel, pc2_max_points=args.pc2_max_points)
 
     execu = SingleThreadedExecutor()
     execu.add_node(node)
