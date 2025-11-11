@@ -694,3 +694,11 @@ python3 rdash_agent.py \
 
 ---
 *"Data should empower, not overwhelm"*
+
+## Citations
+
+### Dataset Acknowledgment
+Testing and visualization for LiDAR suite in R’DASH were validated using LiDAR sequences derived from the [KITTI Vision Benchmark Suite](http://www.cvlibs.net/datasets/kitti/) by Geiger *et al.*, CVPR 2012:
+> A. Geiger, P. Lenz, and R. Urtasun.  
+> *Are we ready for Autonomous Driving? The KITTI Vision Benchmark Suite.*  
+> In **CVPR**, 2012.
