@@ -689,7 +689,7 @@ async function loadRobotsInto(container) {
       if (meta.cameras.length) pills.appendChild(el('span', { className: 'pill' }, 'Camera'));
       // audio tiles not shown in UI (API kept)
       // text log active pill
-      if (meta.texts && meta.texts.length) pills.appendChild(el('span', { className: 'pill' }, 'Text'));
+      if (meta.texts && meta.texts.length) pills.appendChild(el('span', { className: 'pill' }, 'Logs'));
       // numeric active pill
       if (meta.sensors && meta.sensors.length) {pills.appendChild(el('span', { className: 'pill' }, 'Numeric'));}
 

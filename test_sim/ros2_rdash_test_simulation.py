@@ -13,8 +13,8 @@ Robot details:
   - Text:            /robot/log  (INFO/WARN/ERROR cycling)
   - Camera (raw):    /robot/camera/image            (frames from ./test_frames/*)
   - Camera (jpeg):   /robot/camera/image/compressed (frames from ./test_frames/*)
-  - LiDAR LaserScan: /robot/lidar/scan
-  - LiDAR PointCloud2: /robot/lidar/points  (for --pc2-summarize)
+  - LiDAR PontCloud2: /robot/lidar/points_velodyne (for --pc2-summarize and --pc2-visual)
+  - LiDAR PointCloud2: /robot/lidar/points  (for --pc2-summarize and --pc2-visual)
   - TF:
       /tf_static: map->odom, base_link->camera_link, base_link->lidar_link, base_link->imu_link
       /tf:        odom->base_link (moving), camera_link slight pitch oscillation
@@ -60,7 +60,7 @@ except Exception:
     CV2 = None
 
 
-# ---------------- QoS helpers ----------------
+# QoS helpers 
 def qos_profiles(reliable: bool):
     reliab = ReliabilityPolicy.RELIABLE if reliable else ReliabilityPolicy.BEST_EFFORT
     return QoSProfile(
@@ -80,7 +80,7 @@ def qos_tf_static():
     )
 
 
-# ---------------- math helpers ----------------
+# math helpers 
 def moving_bar(h, w, t):
     """Simple synthetic image (fallback if no test_frames found)."""
     if NP is None:
@@ -90,24 +90,42 @@ def moving_bar(h, w, t):
     img[:, x:x+3, :] = 255
     return img
 
-def make_pc2(points_xyz, frame_id="lidar"):
+def make_pc2(points_xyz, frame_id="lidar", intensity=None):
+    """Build a PointCloud2 (x,y,z[,i]). points_xyz: (N,3) float32. intensity: (N,) float32 or None."""
     if NP is None:
         return None
     assert points_xyz.ndim == 2 and points_xyz.shape[1] == 3
+    N = points_xyz.shape[0]
+    has_i = intensity is not None and len(intensity) == N
+
     msg = PointCloud2()
     msg.header.frame_id = frame_id
     msg.height = 1
-    msg.width = points_xyz.shape[0]
+    msg.width = N
     msg.is_bigendian = False
     msg.is_dense = True
-    msg.point_step = 12  # 3 * float32
-    msg.row_step = msg.point_step * msg.width
-    msg.fields = [
-        PointField(name='x', offset=0,  datatype=PointField.FLOAT32, count=1),
-        PointField(name='y', offset=4,  datatype=PointField.FLOAT32, count=1),
-        PointField(name='z', offset=8,  datatype=PointField.FLOAT32, count=1),
-    ]
-    msg.data = points_xyz.astype(NP.float32).tobytes()
+
+    if has_i:
+        msg.point_step = 16  # x,y,z,i -> 4*float32
+        msg.row_step = msg.point_step * N
+        msg.fields = [
+            PointField(name='x', offset=0,  datatype=PointField.FLOAT32, count=1),
+            PointField(name='y', offset=4,  datatype=PointField.FLOAT32, count=1),
+            PointField(name='z', offset=8,  datatype=PointField.FLOAT32, count=1),
+            PointField(name='intensity', offset=12, datatype=PointField.FLOAT32, count=1),
+        ]
+        buf = NP.concatenate([points_xyz.astype(NP.float32),
+                              intensity.reshape(-1,1).astype(NP.float32)], axis=1).tobytes()
+        msg.data = buf
+    else:
+        msg.point_step = 12  # 3 * float32
+        msg.row_step = msg.point_step * N
+        msg.fields = [
+            PointField(name='x', offset=0,  datatype=PointField.FLOAT32, count=1),
+            PointField(name='y', offset=4,  datatype=PointField.FLOAT32, count=1),
+            PointField(name='z', offset=8,  datatype=PointField.FLOAT32, count=1),
+        ]
+        msg.data = points_xyz.astype(NP.float32).tobytes()
     return msg
 
 def quat_from_rpy(roll, pitch, yaw):
@@ -131,13 +149,13 @@ class AgnosticDemo(Node):
         self.args = args
         qos_rel = qos_profiles(args.reliable)
 
-        # ---------- camera frames source (from ./test_frames) ----------
+        # camera frames source (from ./test_frames)
         self._frame_paths = []
         self._frame_idx = 0
         self._last_bgr = None
         self._load_frame_list()
 
-        # ---------- Regular numerics (main robot page) ----------
+        # Regular numerics (main robot page)
         self.pub_speed       = self._maybe_pub(args.enable_numeric,   Float32, '/robot/speed_mps', qos_rel)
         self.pub_altitude    = self._maybe_pub(args.enable_numeric,   Float32, '/robot/altitude_m', qos_rel)
         self.pub_batt_mv     = self._maybe_pub(args.enable_numeric,   Float32, '/robot/battery_mv', qos_rel)
@@ -160,12 +178,19 @@ class AgnosticDemo(Node):
         self.pub_img  = self._maybe_pub(args.enable_image and BRIDGE is not None, Image, '/robot/camera/image', qos_rel)
         self.pub_imgc = self._maybe_pub(args.enable_compressed and CV2 is not None, CompressedImage, '/robot/camera/image/compressed', qos_rel)
 
-        # LiDAR: LaserScan + PointCloud2
+        # # LiDAR: PointCloud2 (random) + PointCloud2 (from velodyne frames) - Laser scan
         self.lidar_frame = 'lidar_link'
-        self.pub_scan = self._maybe_pub(args.enable_lidar, LaserScan, '/robot/lidar/scan', qos_rel)
+#        self.pub_scan = self._maybe_pub(args.enable_lidar, LaserScan, '/robot/lidar/scan', qos_rel)
         self.pub_pc2  = self._maybe_pub(args.enable_lidar and NP is not None, PointCloud2, '/robot/lidar/points', qos_rel)
+        self.pub_pc2_txt = self._maybe_pub(args.enable_lidar and NP is not None, PointCloud2, '/robot/lidar/points_velodyne', qos_rel)
 
-        # ---------- TF (static + dynamic) ----------
+        # TXT PC2 source (KITTI-like): ./pc2_data/*.txt
+        self._pc2_txt_paths = []
+        self._pc2_txt_idx = 0
+        self._pc2_dir = os.path.join(os.getcwd(), args.pc2_dir)
+        self._load_pc2_txt_list()
+
+        # TF (static + dynamic)
         self.pub_tf        = self.create_publisher(TFMessage, '/tf', qos_rel)
         self.pub_tf_static = self.create_publisher(TFMessage, '/tf_static', qos_tf_static())
 
@@ -176,7 +201,7 @@ class AgnosticDemo(Node):
         self.create_timer(0.1, self._tick_tf_base)     # 10 Hz
         self.create_timer(0.2, self._tick_tf_camera)   # 5 Hz
 
-        # ---------- Timers ----------
+        # Timers
         if self.pub_speed:
             self._spd = 0.0
             self.create_timer(1.0 / args.numeric_hz, self.tick_speed)
@@ -196,11 +221,11 @@ class AgnosticDemo(Node):
             self._hc, self._wc = args.jpeg_h, args.jpeg_w
             self.create_timer(1.0 / args.compressed_hz, self.tick_compressed_image)
 
-        # LiDAR
-        if self.pub_scan:
-            self.create_timer(1.0 / args.lidar_hz, self.tick_scan)
+        # LiDAR timers
         if self.pub_pc2:
-            self.create_timer(1.0 / args.pc2_hz, self.tick_pc2)
+             self.create_timer(1.0 / args.pc2_hz, self.tick_pc2)
+        if self.pub_pc2_txt and self._pc2_txt_paths:
+            self.create_timer(1.0 / args.pc2_txt_hz, self.tick_pc2_txt)
 
         # DDS numeric
         self.pub_dds_latency = self._maybe_pub(
@@ -306,7 +331,7 @@ class AgnosticDemo(Node):
             p = 101.3 + 1.2 * math.sin(t * 0.03)
             self.pub_press_kpa.publish(Float32(data=float(p)))
 
-    # ---------- regular text ----------
+    # regular text 
     def tick_log(self):
         try:
             lvl = next(self._level_cycle)
@@ -320,7 +345,7 @@ class AgnosticDemo(Node):
         msg = f"DEBUG: cpu={random.randint(20,90)}%"
         self.pub_debug.publish(String(data=msg))
 
-    # ---------- images (from disk frames, looped) ----------
+    # images (from disk frames, looped)
     def tick_raw_image(self):
         if BRIDGE is None:
             return
@@ -350,31 +375,31 @@ class AgnosticDemo(Node):
         msg.data = buf.tobytes()
         self.pub_imgc.publish(msg)
 
-    # ---------- LiDAR ----------
-    def tick_scan(self):
-        n = 360
-        rng = []
-        t = time.time()
-        blocked_start = int((math.sin(t*0.3)*0.5+0.5) * 120)
-        for i in range(n):
-            base = 5.0 + 0.5 * math.sin((i/20.0) + t*0.2)
-            noise = random.uniform(-0.05, 0.05)
-            r = max(0.1, base + noise)
-            if blocked_start <= i < blocked_start+20:
-                r = 0.15
-            rng.append(r)
+    # LiDAR 
+    # def tick_scan(self):
+    #     n = 360
+    #     rng = []
+    #     t = time.time()
+    #     blocked_start = int((math.sin(t*0.3)*0.5+0.5) * 120)
+    #     for i in range(n):
+    #         base = 5.0 + 0.5 * math.sin((i/20.0) + t*0.2)
+    #         noise = random.uniform(-0.05, 0.05)
+    #         r = max(0.1, base + noise)
+    #         if blocked_start <= i < blocked_start+20:
+    #             r = 0.15
+    #         rng.append(r)
 
-        msg = LaserScan()
-        msg.header.frame_id = self.lidar_frame
-        msg.angle_min = -math.pi
-        msg.angle_max = math.pi
-        msg.angle_increment = (msg.angle_max - msg.angle_min) / n
-        msg.time_increment = 0.0
-        msg.scan_time = 1.0 / max(self.args.lidar_hz, 1.0)
-        msg.range_min = 0.1
-        msg.range_max = 12.0
-        msg.ranges = rng
-        self.pub_scan.publish(msg)
+    #     msg = LaserScan()
+    #     msg.header.frame_id = self.lidar_frame
+    #     msg.angle_min = -math.pi
+    #     msg.angle_max = math.pi
+    #     msg.angle_increment = (msg.angle_max - msg.angle_min) / n
+    #     msg.time_increment = 0.0
+    #     msg.scan_time = 1.0 / max(self.args.lidar_hz, 1.0)
+    #     msg.range_min = 0.1
+    #     msg.range_max = 12.0
+    #     msg.ranges = rng
+    #     self.pub_scan.publish(msg)
 
     def tick_pc2(self):
         if NP is None:
@@ -391,7 +416,54 @@ class AgnosticDemo(Node):
         if msg:
             self.pub_pc2.publish(msg)
 
-    # ---------- DDS numerics ----------
+     # LiDAR: TXT PC2 sequence 
+    def _load_pc2_txt_list(self):
+        try:
+            if not os.path.isdir(self._pc2_dir):
+                return
+            self._pc2_txt_paths = sorted(glob.glob(os.path.join(self._pc2_dir, '*.txt')))
+            self._pc2_txt_idx = 0
+            if not self._pc2_txt_paths:
+                self.get_logger().warn(f"No TXT PC2 frames found in {self._pc2_dir}")
+        except Exception as e:
+            self.get_logger().warn(f"Failed to scan {self._pc2_dir}: {e}")
+
+    def _read_pc2_txt(self, path):
+        """Load one TXT frame: lines of x y z [i]. Returns (xyz(N,3), intensity(N,) or None)."""
+        try:
+            arr = NP.loadtxt(path, dtype=NP.float32)
+            if arr.ndim == 1 and arr.size >= 3:
+                arr = arr.reshape(1, -1)
+            if arr.shape[1] < 3:
+                return None, None
+            xyz = arr[:, :3].astype(NP.float32, copy=False)
+            inten = arr[:, 3].astype(NP.float32, copy=False) if arr.shape[1] >= 4 else None
+
+            # Downsample by stride if too many points
+            max_pts = max(0, int(self.args.pc2_txt_max_points))
+            if max_pts and xyz.shape[0] > max_pts:
+                stride = max(1, xyz.shape[0] // max_pts)
+                xyz = xyz[::stride, :]
+                if inten is not None:
+                    inten = inten[::stride]
+            return xyz, inten
+        except Exception as e:
+            self.get_logger().warn(f"Failed to load TXT PC2 '{path}': {e}")
+            return None, None
+
+    def tick_pc2_txt(self):
+        if NP is None or not self._pc2_txt_paths:
+            return
+        path = self._pc2_txt_paths[self._pc2_txt_idx]
+        self._pc2_txt_idx = (self._pc2_txt_idx + 1) % len(self._pc2_txt_paths)
+        xyz, inten = self._read_pc2_txt(path)
+        if xyz is None or xyz.shape[0] == 0:
+            return
+        msg = make_pc2(xyz, frame_id=self.lidar_frame, intensity=inten)
+        if msg and self.pub_pc2_txt:
+            self.pub_pc2_txt.publish(msg)
+
+    # DDS numerics 
     def tick_dds_latency(self):
         start = time.perf_counter()
         ms = -1.0
@@ -408,20 +480,20 @@ class AgnosticDemo(Node):
         cpu = (math.sin(t * 0.7) * 0.5 + 0.5) * 100.0
         self.pub_dds_cpu.publish(Float32(data=float(cpu)))
 
-    # ---------- DDS texts ----------
+    # DDS texts 
     def tick_dds_texts(self):
         if hasattr(self, 'pub_dds_diag') and self.pub_dds_diag:
             self.pub_dds_diag.publish(String(data="DDS OK: system nominal"))
         if hasattr(self, 'pub_dds_diag2') and self.pub_dds_diag2:
             self.pub_dds_diag2.publish(String(data="DDS/System: health optimal"))
 
-    # ---------- bursts to stress charts ----------
+    # bursts to stress charts 
     def tick_burst(self):
         for _ in range(self.args.burst_points):
             v = max(0.0, getattr(self, '_spd', 0.0) + random.uniform(-0.1, 0.1))
             self.pub_speed.publish(Float32(data=float(v)))
 
-    # ---------- TF publishers ----------
+    # TF publishers 
     def _publish_static_tf(self):
         # map -> odom (identity or slight offset)
         t1 = TransformStamped()
@@ -502,7 +574,7 @@ class AgnosticDemo(Node):
         self.pub_tf.publish(TFMessage(transforms=[ts]))
 
 
-# ---------------- Argparse + main ----------------
+# Argparse + main
 def parse_args():
     p = argparse.ArgumentParser(description="Agnostic RDash ROS2 demo (expanded, TF + video frames)")
     p.add_argument('--reliable', action='store_true', help='Use RELIABLE QoS (default BEST_EFFORT)')
@@ -520,8 +592,10 @@ def parse_args():
     p.add_argument('--image-hz', type=float, default=15.0)      # raw camera FPS
     p.add_argument('--compressed-hz', type=float, default=8.0)  # jpeg FPS
     p.add_argument('--text-period', type=float, default=2.0)
-    p.add_argument('--lidar-hz', type=float, default=7.0)       # LaserScan
-    p.add_argument('--pc2-hz', type=float, default=5.0)         # PointCloud2
+    # p.add_argument('--lidar-hz', type=float, default=7.0)       # LaserScan
+    # p.add_argument('--pc2-hz', type=float, default=5.0)         # PointCloud2
+    p.add_argument('--pc2-hz', type=float, default=5.0, help='Random PC2 rate')
+    p.add_argument('--pc2-txt-hz', type=float, default=10.0, help='TXT PC2 playback rate')
     p.add_argument('--dds-latency-period', type=float, default=2.0)
     p.add_argument('--dds-cpu-period', type=float, default=1.0)
     p.add_argument('--dds-text-period', type=float, default=3.0)
@@ -535,6 +609,9 @@ def parse_args():
     p.add_argument('--burst-points', type=int, default=60,   help='Points per burst')
     p.add_argument('--nan-prob', type=float, default=0.02,   help='Probability of NaN injection on speed')
     p.add_argument('--inf-prob', type=float, default=0.01,   help='Probability of +/-Inf injection on speed')
+    # PC2 TXT source
+    p.add_argument('--pc2-dir', default='pc2_data', help='Directory containing *.txt LiDAR frames')
+    p.add_argument('--pc2-txt-max-points', type=int, default=120000, help='Cap points per TXT frame (0 = unlimited)')
     return p.parse_args()
 
 def main():
