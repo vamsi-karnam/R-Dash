@@ -64,6 +64,7 @@ Changelog:
 * [Appendix I - Flags and Env vars](#appendix-i---full-flags--env-vars)
 * [Appendix II - CLI usage examples](#appendix-ii---full-cli-examples)
 * [TL;DR](#tldr)
+* [Citations](#citations)
 
 ## Intro & description
 
@@ -693,7 +694,7 @@ python3 rdash_agent.py \
 
 
 ---
-*"Data should empower, not overwhelm"*
+> *"Data should empower, not overwhelm"*
 ---
 
 ## Citations
