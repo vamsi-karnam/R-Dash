@@ -231,9 +231,13 @@ main/
 ├── test_sim/
 │   ├── setup.txt                 
 │   └── ros2_rdash_test_simulation.py
+├── docs/
+│   ├── api_documentation.pdf                 
+│   └── readme.md
 └── README.md
 └── LICENSE
-└── NOTICE                    
+└── NOTICE
+└── .gitignore                    
 ```
 
 
