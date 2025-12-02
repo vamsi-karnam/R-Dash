@@ -363,3 +363,15 @@ canvas { width: 100%; height: 280px; display: block; }
   border: 1px solid var(--border-light);
   overflow: hidden;
 }
+
+/* URL colour scheme */
+
+a {
+  color: #fff;
+  text-decoration: none; /* keep none */
+}
+
+a:hover {
+  color: var(--accent); /* or white */
+  text-decoration: underline; /* underline on hover */
+}
