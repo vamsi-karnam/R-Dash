@@ -262,6 +262,19 @@ class UrdafAgent(Node):
         d = message_to_ordereddict(msg)
         f = flatten(d)
         if not f: return
+
+        # --- GPS / NavSatFix-style messages: alias latitude/longitude -> lat/lon ---
+        # This is intentionally type-agnostic: any numeric message that has
+        # 'latitude' and 'longitude' fields will also expose 'lat' and 'lon'
+        # in the payload, so the frontend's geo detector can see it.
+        lat_val = f.get("latitude")
+        lon_val = f.get("longitude")
+        if isinstance(lat_val, (int, float)) and "lat" not in f:
+            f["lat"] = float(lat_val)
+        if isinstance(lon_val, (int, float)) and "lon" not in f:
+            f["lon"] = float(lon_val)
+        # ---------------------------------------------------------------------------
+
         sensor = self._sensor_name(topic)
         if not self.throttle_ok(sensor): return
 
@@ -273,12 +286,6 @@ class UrdafAgent(Node):
             f_scaled = {k: f_scaled[k] for k in keep}
             if isinstance(units, dict) and units:
                 units = {k: units[k] for k in keep if k in units}
-#            try:
-#                self.get_logger().warn(
-#                    f"Trimmed {len(f) - len(f_scaled)} metrics for sensor '{sensor}' "f"({len(f_scaled)} kept)"
-#                )
-#            except Exception:
-#                pass
         # ---------------------------------------------------------------------- new
 
         payload = {

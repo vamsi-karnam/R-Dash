@@ -524,11 +524,16 @@ function buildChart(canvas, sensorKey, hist, unitsMap, robot, sensor, status, la
     const name = unitsMap && unitsMap[k] ? `${k} (${unitsMap[k]})` : k;
     const sid  = `${sensorKey}|${k}`;
     seriesIdByMetric.set(k, sid);
+
+  // If there's only have a handful of points (e.g. API-pushed data), show markers so they’re actually visible.
+  const showMarker = pts.length <= 2;   // tweak threshold to required -> at least 2 points seems optimal
+
     series.push({
       id: sid,          // STABLE ID
       name,
       type: 'line',
-      showSymbol: false,
+      showSymbol: showMarker,
+      symbolSize: showMarker ? 8 : 3,
       smooth: false,
       sampling: 'lttb',
       data: pts,
